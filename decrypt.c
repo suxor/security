@@ -46,3 +46,52 @@ int diff_to_max_index(int *key_index, int max_len, int base)
     return result;
 }
 
+int step_forward(int *key_index, int max_len, int base, int step)
+{
+    int i = 0, j = 0, mod = 0, weight = 0, ret = 0, ori_step = step, exceed = 0;
+    char password[128];
+    int *restore = malloc(sizeof(int)*max_len);
+    assert(0 != restore);
+   
+    assert(max_len < 128);
+    index_to_password(key_index, max_len, password);
+    //DEBUG_OUTPUT(DEBUG_WARNING, "current step is: %s\r\n", password);
+    DEBUG_OUTPUT(DEBUG_DEBUG, "input step is: %d\r\n", step);
+    DEBUG_OUTPUT(DEBUG_ERROR, "password of current step is: %s\r\n", password);
+#if DEBUG_DEBUG >= DEBUG_LEVEL
+    printf("index of current step is: ");
+    for (i = 0; i < max_len; i ++) {
+        if (0 <= key_index[i]) {
+            printf("%02d ", key_index[i]);
+            continue;
+        }
+        break;
+    }
+    printf("\r\n");
+#endif
+    memcpy(restore, key_index, sizeof(int)*max_len);
+    for (i = 0; i < max_len && 0 != step; i ++) {
+        mod = step % base;
+        assert(key_index[i]>=0);
+        key_index[i] += mod;
+
+        j = i;
+        while(key_index[i] >= base) {
+            if (j + 1 < max_len) {
+                key_index[j] = key_index[j] % base;
+                key_index[++j]++;
+            } else {
+                memcpy(key_index, restore, sizeof(int)*max_len);
+                return diff_to_max_index(key_index, max_len, base);
+            }
+        }
+        step /= base;
+    }
+    if (0 != step && i >= max_len) {
+        memcpy(key_index, restore, sizeof(int)*max_len);
+        return diff_to_max_index(key_index, max_len, base);
+    }
+    return 0;
+}
+
+ 
