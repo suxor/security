@@ -145,4 +145,129 @@ void *worker(void *args)
     pthread_mutex_unlock(&worker_data->main_data->mutex);
     return 0;
 }
-              
+             
+void decrypt_password(int max_worker_num, int min_key_len, int max_key_len, int step)
+{
+    pthread_t tid;
+    pthread_attr_t tattr;
+    worker_data_s *worker_data_array;
+    main_data_s *main_data;
+    int i = 0;
+    int ret = 0;
+    int diff = 0;
+    int *curr_key_index = 0;
+    int curr_key_len = min_key_len;
+
+    pthread_attr_init(&tattr);
+
+    main_data = malloc(sizeof(main_data_s));
+    assert(0 != main_data);
+    pthread_mutex_init(&main_data->mutex, 0);
+    pthread_cond_init(&main_data->cond, 0);
+    main_data->is_completed = 0;
+    main_data->key_was_got = 0;
+    main_data->active_worker_num = 0;
+    main_data->worker_events = malloc(sizeof(int)*max_worker_num);
+    assert(0 != main_data->worker_events);
+    memset(main_data->worker_events, 0, sizeof(int)*max_worker_num);
+    main_data->result_key = malloc(max_key_len + 1);
+    assert(0 != main_data->result_key);
+    memset(main_data->result_key, 0, max_key_len + 1);
+
+    curr_key_index = (int *)malloc(sizeof(int)*(max_key_len + 1));
+    assert(0 != curr_key_index);
+    memset(curr_key_index, 0, sizeof(int)*(max_key_len + 1));
+    for(i = min_key_len; i <= max_key_len; i ++) { 
+        curr_key_index[i] = -1;
+    }
+
+    worker_data_array = malloc(sizeof(worker_data_s)*max_worker_num);
+    assert(0 != worker_data_array);
+
+    pthread_mutex_lock(&main_data->mutex);
+    for (i = 0; i < max_worker_num; i ++) {
+        pthread_mutex_init(&(worker_data_array[i].mutex), 0);
+        pthread_cond_init(&(worker_data_array[i].cond), 0);
+        worker_data_array[i].id = i;
+        worker_data_array[i].main_data = main_data;
+        worker_data_array[i].max_len = max_key_len;
+        worker_data_array[i].key_index = malloc(sizeof(int)*(max_key_len + 1));
+        assert(0 != worker_data_array[i].key_index);
+        memcpy(worker_data_array[i].key_index, curr_key_index, sizeof(int)*(max_key_len + 1));
+
+        diff = step_forward(curr_key_index, curr_key_len, dic_len, step);
+        if (0 != diff) {
+            if (curr_key_len >= max_key_len) {
+                main_data->is_completed = 1;
+            } else {
+                curr_key_len ++;
+                memset(curr_key_index, 0, sizeof(int)*curr_key_len);
+            }
+            worker_data_array[i].count = diff;
+        } else {
+            worker_data_array[i].count = step;
+        }
+        worker_data_array[i].running = 1;
+
+        ret = pthread_create(&tid, &tattr, worker, (void *)&worker_data_array[i]);
+        assert(0 == ret);
+        main_data->active_worker_num ++;
+        if (1 == main_data->is_completed) break;
+    }
+
+    do {
+        pthread_cond_wait(&main_data->cond, &main_data->mutex);
+        
+        DEBUG_OUTPUT(DEBUG_WARNING, "main get cond\r\n");
+        for (i = 0; i  < main_data->active_worker_num; i ++) {
+            if (!main_data->worker_events[i]) continue;
+            main_data->worker_events[i] = 0;
+
+            pthread_mutex_lock(&worker_data_array[i].mutex);
+            if (!main_data->key_was_got && ! main_data->is_completed) { 
+                memcpy(worker_data_array[i].key_index, curr_key_index, sizeof(int)*(max_key_len + 1));
+
+                diff = step_forward(curr_key_index, max_key_len, dic_len, step);
+                if (0 != diff) {
+                    if (curr_key_len >= max_key_len) {
+                        main_data->is_completed = 1;
+                    } else {
+                        curr_key_len ++;
+                        memset(curr_key_index, 0, sizeof(int)*curr_key_len);
+                    }
+                    worker_data_array[i].count = diff + 1;
+                } else {
+                    worker_data_array[i].count = step;
+                }
+                pthread_cond_signal(&worker_data_array[i].cond);
+                DEBUG_OUTPUT(DEBUG_WARNING, "notify to child\r\n");
+            } else {
+               worker_data_array[i].running = 0;
+            }
+            pthread_mutex_unlock(&worker_data_array[i].mutex);
+        }
+    }while(main_data->active_worker_num);
+    pthread_mutex_unlock(&main_data->mutex);
+
+    if (!main_data->key_was_got) printf("the password was not found!\r\n");
+    else printf("the password is: %s\r\n", main_data->result_key);
+
+    free(curr_key_index);
+    pthread_mutex_destroy(&main_data->mutex);
+    pthread_cond_destroy(&main_data->cond);
+    free(main_data->result_key);
+    free(main_data->worker_events);
+    free(main_data);
+    for (i = 0; i < max_worker_num; i ++) {
+        free(worker_data_array[i].key_index);
+        pthread_mutex_destroy(&worker_data_array[i].mutex);
+        pthread_cond_destroy(&worker_data_array[i].cond);
+    }
+    free(worker_data_array);
+    pthread_attr_destroy(&tattr);
+}
+
+int main(int argc, char *argv[])
+{
+   return 0;
+}
