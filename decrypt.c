@@ -269,5 +269,70 @@ void decrypt_password(int max_worker_num, int min_key_len, int max_key_len, int 
 
 int main(int argc, char *argv[])
 {
-   return 0;
+    char in_salt[16];
+    char in_crypted[128];
+    int encrypt_method;
+    int max_worker = 0;
+    int min_key_len = 0;
+    int max_key_len = 0;
+    int step = 0;
+
+    printf("Please input the dictionary: ");
+    scanf("%127s", dic);
+    printf("%s\r\n", dic);
+    if((dic_len = strlen(dic)) <= 0) {
+        printf("The dictionary is null.\r\n");
+        goto exit;
+    }
+
+    printf("Please input the encryption method id(5 or 6): ");
+    scanf("%d", &encrypt_method);
+    if(5 != encrypt_method && 6 != encrypt_method) {
+        //
+        goto exit;
+    }
+
+    printf("Please input the salt: ");
+    scanf("%8s", in_salt);
+    printf("%s\r\n", in_salt);
+    if (8 != strlen(in_salt)) {
+        //
+        goto exit;
+    }
+
+    printf("Please input the encrypted string: ");
+    scanf("%127s", in_crypted);
+    printf("%s\r\n", in_crypted);
+    if(strlen(in_crypted) <= 0) {
+        //
+        goto exit;
+    }
+
+    printf("Please input the worker_num: ");
+    scanf("%d", &max_worker);
+    printf("%d\r\n", max_worker);
+    printf("Please input the min_key_len: ");
+    scanf("%d", &min_key_len);
+    printf("%d\r\n", min_key_len);
+    printf("Please input the max_key_len: ");
+    scanf("%d", &max_key_len);
+    printf("%d\r\n", max_key_len);
+    printf("Please input the step: ");
+    scanf("%d", &step);
+    printf("%d\r\n", step);
+
+    curr_salt = malloc(32);
+    assert(0 != curr_salt);
+    sprintf(curr_salt, "$%d$%s$", encrypt_method, in_salt);
+    DEBUG_OUTPUT(DEBUG_WARNING, "current salt is: %s\r\n", curr_salt);
+    expected_result = malloc(256);
+    assert(0 != expected_result);
+    expected_length = sprintf(expected_result, "%s%s", curr_salt, in_crypted);
+    DEBUG_OUTPUT(DEBUG_WARNING, "expected result[length=%d] is: %s\r\n", expected_length, expected_result);
+    decryp_password(max_worker, min_key_len, max_key_len, step);
+exit:
+    free(curr_salt);
+    free(expected_result);
+ 
+    return 0;
 }
